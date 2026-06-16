@@ -50,7 +50,7 @@ pub mod requirement;
 pub mod tracelink;
 
 pub use artifact::{Artifact, ArtifactKind, ArtifactRef, LinkKind, TraceLinkError};
-pub use contract::{AcceptanceContract, Criterion, GateReason, GherkinRef, Layer, ProgressionGate};
+pub use contract::{AcceptanceContract, BridgePhase, Criterion, GateReason, GherkinRef, Layer, ProgressionGate};
 pub use governance::{
     BuiltinPolicy, Evidence, EvidenceRequirement, EvidenceType, GovernanceContract, GovernanceRule,
     PolicyCheck, PolicyDefinition, PolicyDomain, PolicyRule,

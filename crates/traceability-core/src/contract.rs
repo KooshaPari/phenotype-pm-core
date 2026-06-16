@@ -74,15 +74,47 @@ pub struct GherkinRef {
     pub line: Option<u32>,
 }
 
+/// Bridge lifecycle phase for spec ↔ implementation traceability.
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum BridgePhase {
+    /// Acceptance criteria specified but not yet bridged to tests.
+    Specified,
+    /// Criteria bridged to validators / matrix bindings.
+    Bridged,
+    /// Implementation exists against bridged criteria.
+    Implemented,
+    /// Bridge verified end-to-end.
+    Verified,
+}
+
 /// Acceptance contract bound to an artifact.
 ///
-/// Satisfied only when **every** criterion resolves to `CoverageState::Covered`.
+/// Satisfied only when **every** criterion resolves to `CoverageState::Covered`
+/// **and** every `must_not_break` invariant remains covered.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct AcceptanceContract {
     pub artifact_ref: ArtifactRef,
     pub criteria: Vec<Criterion>,
     pub verification: VerificationMethod,
     pub bdd: Vec<GherkinRef>,
+    /// Optional human-readable goal for the contract.
+    #[serde(default)]
+    pub goal: Option<String>,
+    /// Invariant ids that must remain covered (regression guards).
+    #[serde(default)]
+    pub must_not_break: Vec<String>,
+    /// Allowed file/path globs for diffs touching this contract.
+    #[serde(default)]
+    pub diff_boundaries: Vec<String>,
+    /// Named semantic checks (lint/policy ids) bound to this contract.
+    #[serde(default)]
+    pub semantic_checks: Vec<String>,
+    /// Current bridge phase, when tracked.
+    #[serde(default)]
+    pub bridge_phase: Option<BridgePhase>,
 }
 
 impl AcceptanceContract {
@@ -99,6 +131,19 @@ impl AcceptanceContract {
                 .cells
                 .get(&(c.test_ref.clone(), c.evidence_ref.clone()))
                 .is_some_and(|cell| cell.coverage == CoverageState::Covered)
+        }) && self.invariants_hold(matrix)
+    }
+
+    /// Returns `true` when every `must_not_break` invariant is Covered in `matrix`.
+    ///
+    /// An invariant id matches matrix cells where `to` or `from` equals the id.
+    /// Vacuously `true` when `must_not_break` is empty.
+    pub fn invariants_hold(&self, matrix: &CoverageMatrix) -> bool {
+        self.must_not_break.iter().all(|inv| {
+            matrix.cells.values().any(|cell| {
+                (cell.to == *inv || cell.from == *inv)
+                    && cell.coverage == CoverageState::Covered
+            })
         })
     }
 
@@ -321,6 +366,11 @@ mod tests {
                 scenario: "User logs in".to_string(),
                 line: Some(12),
             }],
+            goal: None,
+            must_not_break: vec![],
+            diff_boundaries: vec![],
+            semantic_checks: vec![],
+            bridge_phase: None,
         }
     }
 
@@ -432,5 +482,33 @@ mod tests {
         assert_eq!(layers.len(), 6);
         assert_eq!(Layer::Intent.next(), Some(Layer::IntentDoc));
         assert_eq!(Layer::Evidence.next(), None);
+    }
+
+    #[test]
+    fn acceptance_contract_requires_invariants_when_must_not_break_set() {
+        let mut contract = sample_contract();
+        contract.must_not_break = vec!["NFR-1".to_string()];
+        let mut matrix = sample_matrix(true);
+        assert!(!contract.is_satisfied(&matrix));
+        assert!(!contract.invariants_hold(&matrix));
+
+        matrix.cells.insert(
+            ("test:T-2".to_string(), "NFR-1".to_string()),
+            MatrixCell {
+                from: "test:T-2".to_string(),
+                to: "NFR-1".to_string(),
+                trace_links: vec![],
+                coverage: CoverageState::Covered,
+            },
+        );
+        assert!(contract.invariants_hold(&matrix));
+        assert!(contract.is_satisfied(&matrix));
+    }
+
+    #[test]
+    fn acceptance_contract_invariants_vacuous_when_empty() {
+        let contract = sample_contract();
+        let matrix = sample_matrix(true);
+        assert!(contract.invariants_hold(&matrix));
     }
 }
