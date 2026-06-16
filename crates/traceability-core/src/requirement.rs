@@ -191,6 +191,7 @@ pub use crate::tracelink::is_core_link_type;
 mod tests {
     use super::*;
     use crate::ids::RequirementId;
+    use std::collections::BTreeMap;
     use uuid::Uuid;
 
     fn sample_artifact() -> Artifact {
