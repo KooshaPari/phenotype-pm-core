@@ -46,6 +46,7 @@ pub mod impact;
 pub mod intent_graph;
 pub mod lifecycle;
 pub mod matrix;
+pub mod progress;
 pub mod requirement;
 pub mod tracelink;
 
@@ -68,6 +69,7 @@ pub use lifecycle::{FeatureState, Transition, TransitionResult};
 pub use matrix::{
     BuildResult, MatrixCell, build_from_pairs, build_matrix, classify_cell, neighbors,
 };
+pub use progress::{ProgressSnapshot, slope, snapshot};
 pub use requirement::{Requirement, RequirementStatus, VerificationMethod, is_core_link_type};
 pub use tracelink::{CORE_TRACE_LINK_TYPES, NEO4J_NODE_LABELS, NEO4J_RELATIONSHIP_TYPES,
                     Neo4jSchema, TraceLink, TraceLinkType};
