@@ -74,15 +74,47 @@ pub struct GherkinRef {
     pub line: Option<u32>,
 }
 
+/// Bridge lifecycle phase for spec ↔ implementation traceability.
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum BridgePhase {
+    /// Acceptance criteria specified but not yet bridged to tests.
+    Specified,
+    /// Criteria bridged to validators / matrix bindings.
+    Bridged,
+    /// Implementation exists against bridged criteria.
+    Implemented,
+    /// Bridge verified end-to-end.
+    Verified,
+}
+
 /// Acceptance contract bound to an artifact.
 ///
-/// Satisfied only when **every** criterion resolves to `CoverageState::Covered`.
+/// Satisfied only when **every** criterion resolves to `CoverageState::Covered`
+/// **and** every `must_not_break` invariant remains covered.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct AcceptanceContract {
     pub artifact_ref: ArtifactRef,
     pub criteria: Vec<Criterion>,
     pub verification: VerificationMethod,
     pub bdd: Vec<GherkinRef>,
+    /// Optional human-readable goal for the contract.
+    #[serde(default)]
+    pub goal: Option<String>,
+    /// Invariant ids that must remain covered (regression guards).
+    #[serde(default)]
+    pub must_not_break: Vec<String>,
+    /// Allowed file/path globs for diffs touching this contract.
+    #[serde(default)]
+    pub diff_boundaries: Vec<String>,
+    /// Named semantic checks (lint/policy ids) bound to this contract.
+    #[serde(default)]
+    pub semantic_checks: Vec<String>,
+    /// Current bridge phase, when tracked.
+    #[serde(default)]
+    pub bridge_phase: Option<BridgePhase>,
 }
 
 impl AcceptanceContract {
@@ -99,6 +131,19 @@ impl AcceptanceContract {
                 .cells
                 .get(&(c.test_ref.clone(), c.evidence_ref.clone()))
                 .is_some_and(|cell| cell.coverage == CoverageState::Covered)
+        }) && self.invariants_hold(matrix)
+    }
+
+    /// Returns `true` when every `must_not_break` invariant is Covered in `matrix`.
+    ///
+    /// An invariant id matches matrix cells where `to` or `from` equals the id.
+    /// Vacuously `true` when `must_not_break` is empty.
+    pub fn invariants_hold(&self, matrix: &CoverageMatrix) -> bool {
+        self.must_not_break.iter().all(|inv| {
+            matrix.cells.values().any(|cell| {
+                (cell.to == *inv || cell.from == *inv)
+                    && cell.coverage == CoverageState::Covered
+            })
         })
     }
 
@@ -126,6 +171,12 @@ pub enum GatePredicate {
     MissingEvidence,
     MissingImplementation,
     MissingTest,
+    /// Execution/code exists before acceptance criteria and tests are defined.
+    CodegenBeforeWalls,
+    /// A criterion lacks a bound test/validator cell in the matrix.
+    MissingValidator,
+    /// `bridge_phase` is below [`BridgePhase::Bridged`] when advancing.
+    BridgeNotEstablished,
 }
 
 /// Reason a gate blocked progression.
@@ -137,6 +188,9 @@ pub enum GateReason {
     MissingEvidence,
     MissingImplementation,
     MissingTest,
+    CodegenBeforeWalls,
+    MissingValidator,
+    BridgeNotEstablished,
 }
 
 impl From<GatePredicate> for GateReason {
@@ -147,6 +201,9 @@ impl From<GatePredicate> for GateReason {
             GatePredicate::MissingEvidence => Self::MissingEvidence,
             GatePredicate::MissingImplementation => Self::MissingImplementation,
             GatePredicate::MissingTest => Self::MissingTest,
+            GatePredicate::CodegenBeforeWalls => Self::CodegenBeforeWalls,
+            GatePredicate::MissingValidator => Self::MissingValidator,
+            GatePredicate::BridgeNotEstablished => Self::BridgeNotEstablished,
         }
     }
 }
@@ -244,6 +301,45 @@ impl ProgressionGate {
                     None
                 }
             }
+            GatePredicate::CodegenBeforeWalls => {
+                let walls_defined = ctx
+                    .acceptance
+                    .map(|a| !a.criteria.is_empty() && ctx.has_test_links)
+                    .unwrap_or(false);
+                if ctx.has_implementation && !walls_defined {
+                    Some(GateReason::CodegenBeforeWalls)
+                } else {
+                    None
+                }
+            }
+            GatePredicate::MissingValidator => {
+                let missing = ctx
+                    .acceptance
+                    .zip(ctx.matrix)
+                    .is_some_and(|(contract, matrix)| {
+                        contract.criteria.iter().any(|c| {
+                            !matrix
+                                .cells
+                                .contains_key(&(c.test_ref.clone(), c.evidence_ref.clone()))
+                        })
+                    });
+                if missing {
+                    Some(GateReason::MissingValidator)
+                } else {
+                    None
+                }
+            }
+            GatePredicate::BridgeNotEstablished => {
+                let bridged = ctx
+                    .acceptance
+                    .and_then(|a| a.bridge_phase)
+                    .is_some_and(|phase| phase >= BridgePhase::Bridged);
+                if !bridged {
+                    Some(GateReason::BridgeNotEstablished)
+                } else {
+                    None
+                }
+            }
         }
     }
 
@@ -321,6 +417,11 @@ mod tests {
                 scenario: "User logs in".to_string(),
                 line: Some(12),
             }],
+            goal: None,
+            must_not_break: vec![],
+            diff_boundaries: vec![],
+            semantic_checks: vec![],
+            bridge_phase: None,
         }
     }
 
@@ -432,5 +533,116 @@ mod tests {
         assert_eq!(layers.len(), 6);
         assert_eq!(Layer::Intent.next(), Some(Layer::IntentDoc));
         assert_eq!(Layer::Evidence.next(), None);
+    }
+
+    #[test]
+    fn acceptance_contract_requires_invariants_when_must_not_break_set() {
+        let mut contract = sample_contract();
+        contract.must_not_break = vec!["NFR-1".to_string()];
+        let mut matrix = sample_matrix(true);
+        assert!(!contract.is_satisfied(&matrix));
+        assert!(!contract.invariants_hold(&matrix));
+
+        matrix.cells.insert(
+            ("test:T-2".to_string(), "NFR-1".to_string()),
+            MatrixCell {
+                from: "test:T-2".to_string(),
+                to: "NFR-1".to_string(),
+                trace_links: vec![],
+                coverage: CoverageState::Covered,
+            },
+        );
+        assert!(contract.invariants_hold(&matrix));
+        assert!(contract.is_satisfied(&matrix));
+    }
+
+    #[test]
+    fn acceptance_contract_invariants_vacuous_when_empty() {
+        let contract = sample_contract();
+        let matrix = sample_matrix(true);
+        assert!(contract.invariants_hold(&matrix));
+    }
+
+    #[test]
+    fn gate_codegen_before_walls_blocks_early_implementation() {
+        let gate = ProgressionGate {
+            from_layer: Layer::PlanWbs,
+            to_layer: Layer::Execution,
+            predicates: vec![GatePredicate::CodegenBeforeWalls],
+        };
+        let ctx_blocked = GateContext {
+            has_implementation: true,
+            ..Default::default()
+        };
+        assert_eq!(
+            gate.evaluate(&ctx_blocked),
+            Err(GateReason::CodegenBeforeWalls)
+        );
+
+        let contract = sample_contract();
+        let ctx_ok = GateContext {
+            acceptance: Some(&contract),
+            has_implementation: true,
+            has_test_links: true,
+            ..Default::default()
+        };
+        assert!(gate.evaluate(&ctx_ok).is_ok());
+    }
+
+    #[test]
+    fn gate_missing_validator_blocks_unbound_criterion() {
+        let gate = ProgressionGate {
+            from_layer: Layer::SpecAdr,
+            to_layer: Layer::PlanWbs,
+            predicates: vec![GatePredicate::MissingValidator],
+        };
+        let contract = sample_contract();
+        let empty_matrix = CoverageMatrix {
+            cells: IndexMap::new(),
+            generated_at: Utc::now(),
+        };
+        let ctx = GateContext {
+            acceptance: Some(&contract),
+            matrix: Some(&empty_matrix),
+            ..Default::default()
+        };
+        assert_eq!(
+            gate.evaluate(&ctx),
+            Err(GateReason::MissingValidator)
+        );
+
+        let matrix = sample_matrix(true);
+        let ctx_ok = GateContext {
+            acceptance: Some(&contract),
+            matrix: Some(&matrix),
+            ..Default::default()
+        };
+        assert!(gate.evaluate(&ctx_ok).is_ok());
+    }
+
+    #[test]
+    fn gate_bridge_not_established_blocks_below_bridged() {
+        let gate = ProgressionGate {
+            from_layer: Layer::IntentDoc,
+            to_layer: Layer::SpecAdr,
+            predicates: vec![GatePredicate::BridgeNotEstablished],
+        };
+        let mut contract = sample_contract();
+        contract.bridge_phase = Some(BridgePhase::Specified);
+        let ctx = GateContext {
+            acceptance: Some(&contract),
+            ..Default::default()
+        };
+        assert_eq!(
+            gate.evaluate(&ctx),
+            Err(GateReason::BridgeNotEstablished)
+        );
+
+        contract.bridge_phase = Some(BridgePhase::Bridged);
+        let ctx_ok = GateContext {
+            acceptance: Some(&contract),
+            ..Default::default()
+        };
+        assert!(gate.evaluate(&ctx_ok).is_ok());
     }
 }
