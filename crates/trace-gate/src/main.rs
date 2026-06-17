@@ -53,6 +53,7 @@ struct Args {
     json: bool,
 }
 
+// FR: FR-GATE-001
 fn main() {
     let args = Args::parse();
 

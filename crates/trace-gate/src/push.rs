@@ -21,6 +21,7 @@ use crate::coverage::CoverageSummary;
 ///
 /// Currently **prints** the would-be payload to stdout. Wire up reqwest
 /// behind a `push` feature flag when Tracera/#754 lands.
+// FR: FR-GATE-003
 pub fn push_to_tracera(url: &str, summary: &CoverageSummary) {
     // Build a TraceLinkInput-shaped payload per the Tracera REST schema.
     let links: Vec<serde_json::Value> = summary

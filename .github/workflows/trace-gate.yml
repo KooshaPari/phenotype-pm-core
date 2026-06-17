@@ -100,8 +100,15 @@ jobs:
           if [ -n "${{ inputs.push_url }}" ]; then
             PUSH_ARG="--push ${{ inputs.push_url }}"
           fi
+          # When invoked as a reusable workflow, honor caller inputs.
+          # When self-triggered on this repo (push/PR, no inputs), scan the
+          # crates/ tree where this repo's own FR annotations live.
+          MANIFEST="${{ inputs.manifest }}"
+          SRC="${{ inputs.src }}"
+          MANIFEST="${MANIFEST:-trace-gate.toml}"
+          SRC="${SRC:-crates}"
           trace-gate \
-            --manifest "${{ inputs.manifest || 'trace-gate.toml' }}" \
-            --src "${{ inputs.src || 'src' }}" \
+            --manifest "$MANIFEST" \
+            --src "$SRC" \
             $PUSH_ARG
         # Exits 0 if all FRs covered, 1 if any are missing.

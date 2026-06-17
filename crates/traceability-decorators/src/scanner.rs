@@ -96,6 +96,7 @@ pub fn scan_file(
 /// Walk `dir` recursively, scanning every file for trace annotations.
 ///
 /// Skips binary-looking files (non-UTF-8). Follows symlinks.
+// FR: FR-GATE-002
 pub fn scan_dir(dir: &Path, patterns: &Patterns) -> Result<Vec<ScanTraceLink>, ScanError> {
     let mut all = Vec::new();
     for entry in WalkDir::new(dir).follow_links(true) {
