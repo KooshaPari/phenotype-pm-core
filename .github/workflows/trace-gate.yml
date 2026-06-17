@@ -90,6 +90,11 @@ jobs:
           cp "${CARGO_TARGET_DIR:-target}/release/trace-gate" ~/.cargo/bin/trace-gate
 
       - name: Run trace-gate
+        # Always run: the git-install primary step is expected to fail for PRs
+        # on phenotype-pm-core itself (it builds from the default branch, which
+        # may not yet contain trace-gate). The self-build fallback recovers the
+        # binary, so the gate must still execute regardless of that earlier step.
+        if: always()
         run: |
           PUSH_ARG=""
           if [ -n "${{ inputs.push_url }}" ]; then
