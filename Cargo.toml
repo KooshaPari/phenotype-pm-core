@@ -1,6 +1,10 @@
 [workspace]
 resolver = "3"
-members = ["crates/traceability-core"]
+members = [
+    "crates/traceability-core",
+    "crates/traceability-decorators",
+    "crates/trace-gate",
+]
 
 [workspace.package]
 version = "0.1.0"

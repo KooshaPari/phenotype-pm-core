@@ -1,0 +1,113 @@
+name: trace-gate
+
+# Reusable workflow — call from any BLOCK A consumer repo:
+#
+#   jobs:
+#     trace-gate:
+#       uses: KooshaPari/phenotype-pm-core/.github/workflows/trace-gate.yml@main
+#       with:
+#         manifest: trace-gate.toml   # optional, default trace-gate.toml
+#         src: src                    # optional, default src
+#
+# The one-liner adoption snippet:
+#   uses: KooshaPari/phenotype-pm-core/.github/workflows/trace-gate.yml@main
+
+on:
+  workflow_call:
+    inputs:
+      manifest:
+        description: "Path to trace-gate.toml in the caller repo"
+        required: false
+        default: "trace-gate.toml"
+        type: string
+      src:
+        description: "Source directory to scan for FR annotations"
+        required: false
+        default: "src"
+        type: string
+      push_url:
+        description: "Optional Tracera ingest URL (best-effort, no exit-code effect)"
+        required: false
+        default: ""
+        type: string
+  # Also allow direct pushes to this repo to test the gate itself.
+  push:
+    branches: ["main", "feat/**"]
+    paths:
+      - "crates/trace-gate/**"
+      - "crates/traceability-decorators/**"
+      - ".github/workflows/trace-gate.yml"
+  pull_request:
+    paths:
+      - "crates/trace-gate/**"
+      - "crates/traceability-decorators/**"
+      - ".github/workflows/trace-gate.yml"
+
+jobs:
+  trace-gate:
+    name: FR Coverage Gate
+    runs-on: ubuntu-latest
+    env:
+      CARGO_TERM_COLOR: always
+      CARGO_TARGET_DIR: /tmp/trace-gate-target
+
+    steps:
+      - name: Checkout caller repo
+        uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+          key: trace-gate-cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: trace-gate-cargo-${{ runner.os }}-
+
+      - name: Build trace-gate from phenotype-pm-core
+        run: |
+          set -e
+          mkdir -p ~/.cargo/bin
+          # Primary path (external consumers): install the published binary from
+          # the default branch. Expected to fail for PRs on this repo itself
+          # (the checked-out source may not yet be on the default branch), so we
+          # fall back to building from the local checkout. Either way this step
+          # must end successfully once the binary is on PATH.
+          if cargo install trace-gate \
+               --git https://github.com/KooshaPari/phenotype-pm-core \
+               --root ~/.cargo 2>/dev/null; then
+            echo "Installed trace-gate from git."
+          else
+            echo "Git install unavailable — building from local checkout."
+            cargo build --release -p trace-gate
+            cp "${CARGO_TARGET_DIR:-target}/release/trace-gate" ~/.cargo/bin/trace-gate
+          fi
+          trace-gate --version
+
+      - name: Run trace-gate
+        # Always run: the git-install primary step is expected to fail for PRs
+        # on phenotype-pm-core itself (it builds from the default branch, which
+        # may not yet contain trace-gate). The self-build fallback recovers the
+        # binary, so the gate must still execute regardless of that earlier step.
+        if: always()
+        run: |
+          PUSH_ARG=""
+          if [ -n "${{ inputs.push_url }}" ]; then
+            PUSH_ARG="--push ${{ inputs.push_url }}"
+          fi
+          # When invoked as a reusable workflow, honor caller inputs.
+          # When self-triggered on this repo (push/PR, no inputs), scan the
+          # crates/ tree where this repo's own FR annotations live.
+          MANIFEST="${{ inputs.manifest }}"
+          SRC="${{ inputs.src }}"
+          MANIFEST="${MANIFEST:-trace-gate.toml}"
+          SRC="${SRC:-crates}"
+          trace-gate \
+            --manifest "$MANIFEST" \
+            --src "$SRC" \
+            $PUSH_ARG
+        # Exits 0 if all FRs covered, 1 if any are missing.

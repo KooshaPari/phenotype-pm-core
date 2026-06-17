@@ -1,0 +1,19 @@
+# trace-gate self-manifest — dogfoods the FR coverage gate on this repo.
+#
+# Each [[requirement]] below is annotated in source with `// FR: <fr_id>`.
+# The trace-gate CI job scans `crates/` and fails if any FR here is missing.
+
+[[requirement]]
+fr_id = "FR-GATE-001"
+description = "CLI gate loads a manifest, scans source, and exits non-zero on missing FR coverage"
+spec_id = "ADR-trace-gate-adoption"
+
+[[requirement]]
+fr_id = "FR-GATE-002"
+description = "Decorator scanner walks a source tree and extracts FR trace annotations"
+spec_id = "ADR-trace-gate-adoption"
+
+[[requirement]]
+fr_id = "FR-GATE-003"
+description = "Coverage results can be pushed to a Tracera ingest endpoint (best-effort)"
+spec_id = "ADR-trace-gate-adoption"
