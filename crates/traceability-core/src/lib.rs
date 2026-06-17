@@ -24,6 +24,7 @@
 //! | [`matrix`]        | Tracera                 | `CoverageMatrix`, `MatrixCell`, `CoverageState`, build/query/diff |
 //! | [`impact`]        | Tracera                 | `ImpactConfig`, `BlastNode`, `ImpactReport`, `compute_impact`     |
 //! | [`intent_graph`]  | AgilePlus               | `NodeType`, `DagStage`, `RelationshipType`, `IntentGraph` validate|
+//! | [`execution_graph`]| **NEW (this crate)**   | `ExecutionNodeType`/`ExecutionStatus`/`ExecutionEdgeType`, runtime DAG |
 //! | [`lifecycle`]     | AgilePlus               | `FeatureState` 8-stage linear state machine                        |
 //! | [`governance`]    | AgilePlus               | `GovernanceContract` / `PolicyRule` / `EvidenceType` / `BuiltinPolicy` |
 //! | [`contract`]      | **NEW (this crate)**    | `AcceptanceContract` + `ProgressionGate`                           |
@@ -40,6 +41,7 @@
 
 pub mod artifact;
 pub mod contract;
+pub mod execution_graph;
 pub mod governance;
 pub mod ids;
 pub mod impact;
@@ -54,6 +56,10 @@ pub use artifact::{Artifact, ArtifactKind, ArtifactRef, LinkKind, TraceLinkError
 pub use contract::{
     AcceptanceContract, BridgePhase, Criterion, GatePredicate, GateReason, GherkinRef, Layer,
     ProgressionGate,
+};
+pub use execution_graph::{
+    ExecutionEdge, ExecutionEdgeType, ExecutionGraph, ExecutionGraphMetadata, ExecutionMeta,
+    ExecutionNode, ExecutionNodeType, ExecutionStatus, ExecutionValidationError,
 };
 pub use governance::{
     BuiltinPolicy, Evidence, EvidenceRequirement, EvidenceType, GovernanceContract, GovernanceRule,
