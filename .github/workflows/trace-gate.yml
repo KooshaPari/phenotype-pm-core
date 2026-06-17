@@ -70,24 +70,23 @@ jobs:
 
       - name: Build trace-gate from phenotype-pm-core
         run: |
-          cargo install trace-gate \
-            --git https://github.com/KooshaPari/phenotype-pm-core \
-            --branch main \
-            --locked \
-            --root ~/.cargo \
-            2>/dev/null || \
-          cargo install trace-gate \
-            --git https://github.com/KooshaPari/phenotype-pm-core \
-            --branch main \
-            --root ~/.cargo
-        # Fallback: build from local checkout if installing from git fails
-        # (useful when this workflow is testing itself on the feat/* branch).
-
-      - name: Self-build fallback (for PRs on phenotype-pm-core itself)
-        if: failure()
-        run: |
-          cargo build --release -p trace-gate
-          cp "${CARGO_TARGET_DIR:-target}/release/trace-gate" ~/.cargo/bin/trace-gate
+          set -e
+          mkdir -p ~/.cargo/bin
+          # Primary path (external consumers): install the published binary from
+          # the default branch. Expected to fail for PRs on this repo itself
+          # (the checked-out source may not yet be on the default branch), so we
+          # fall back to building from the local checkout. Either way this step
+          # must end successfully once the binary is on PATH.
+          if cargo install trace-gate \
+               --git https://github.com/KooshaPari/phenotype-pm-core \
+               --root ~/.cargo 2>/dev/null; then
+            echo "Installed trace-gate from git."
+          else
+            echo "Git install unavailable — building from local checkout."
+            cargo build --release -p trace-gate
+            cp "${CARGO_TARGET_DIR:-target}/release/trace-gate" ~/.cargo/bin/trace-gate
+          fi
+          trace-gate --version
 
       - name: Run trace-gate
         # Always run: the git-install primary step is expected to fail for PRs
