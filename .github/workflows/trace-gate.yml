@@ -87,7 +87,7 @@ jobs:
         if: failure()
         run: |
           cargo build --release -p trace-gate
-          cp target/release/trace-gate ~/.cargo/bin/trace-gate
+          cp "${CARGO_TARGET_DIR:-target}/release/trace-gate" ~/.cargo/bin/trace-gate
 
       - name: Run trace-gate
         run: |
