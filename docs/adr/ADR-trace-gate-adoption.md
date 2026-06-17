@@ -71,8 +71,35 @@ description = "User can register"
 # In .github/workflows/ci.yml of any BLOCK A consumer repo:
 jobs:
   trace-gate:
-    uses: KooshaPari/phenotype-pm-core/.github/workflows/trace-gate.yml@main
+    uses: KooshaPari/phenotype-pm-core/.github/workflows/trace-gate.yml@trace-gate-v1
 ```
+
+---
+
+## Versioning & Adoption
+
+The trace-gate pipeline merged to `master` at SHA `6064d30185696459c583a64c851320f99be2b00a`. To prevent silent staleness for consumers, we adopt **tag-pinned distribution** rather than branch-tracking.
+
+### Branch & release strategy
+
+- **`master` is the single long-lived branch.** All trace-gate work merges to `master`. There is no parallel `main` snapshot branch — it was a one-time snapshot of the merge SHA and has been deleted to avoid a silent-staleness trap (consumers pinning `@main` would silently freeze at the snapshot SHA forever).
+- **Consumers pin a TAG, never `@main` or `@master`.** Pinning `@master` would silently pull unreviewed changes; pinning `@main` would silently freeze. A tag gives consumers an explicit, immutable, reviewable version they upgrade on purpose.
+- **Each merged change that affects the reusable workflow gets a new `trace-gate-vN` tag + GitHub release.** The release notes describe what changed so consumers can decide whether to bump their `@trace-gate-vN` pin. Tags are immutable; we never move a published tag.
+
+| Version | SHA | Notes |
+|---|---|---|
+| `trace-gate-v1` | `6064d301` | Decorator scanner + CI coverage gate + reusable workflow (initial adoption pipeline) |
+
+### One-line adoption snippet (tag-pinned)
+
+```yaml
+# In .github/workflows/ci.yml of any BLOCK A consumer repo:
+jobs:
+  trace-gate:
+    uses: KooshaPari/phenotype-pm-core/.github/workflows/trace-gate.yml@trace-gate-v1
+```
+
+To upgrade later, bump the tag suffix (e.g. `@trace-gate-v2`) after reviewing that release's notes.
 
 ---
 
@@ -97,7 +124,7 @@ AgilePlus (`C:/Users/koosh/Dev/AgilePlus`) is the first consumer target. The rol
 AgilePlus adoption checklist:
 [ ] Add trace-gate.toml listing all Epic/Story-derived FR IDs
 [ ] Annotate implementation functions with // FR: <id> or #[trace_fr(...)]
-[ ] Add workflow uses: KooshaPari/phenotype-pm-core/.github/workflows/trace-gate.yml@main
+[ ] Add workflow uses: KooshaPari/phenotype-pm-core/.github/workflows/trace-gate.yml@trace-gate-v1
 [ ] (post #754) Add --push https://tracera.prod/api/v1/coverage/ingest to workflow inputs
 ```
 
