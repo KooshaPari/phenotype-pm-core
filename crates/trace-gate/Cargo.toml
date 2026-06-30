@@ -18,6 +18,9 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 toml = "0.8"
+tracing = { version = "0.1", default-features = false, features = ["std"] }
+tracing-subscriber = { version = "0.3", default-features = false, features = ["env-filter", "fmt"] }
+is-terminal = "0.4"
 
 [dev-dependencies]
 assert_cmd = "2"
