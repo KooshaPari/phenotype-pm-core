@@ -12,6 +12,15 @@ name: trace-gate
 # The one-liner adoption snippet:
 #   uses: KooshaPari/phenotype-pm-core/.github/workflows/trace-gate.yml@main
 
+# Permissions: contents read is sufficient for checkout + cargo build.
+permissions:
+  contents: read
+
+# Cancel in-progress runs on the same ref (PR push supersedes prior run).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 on:
   workflow_call:
     inputs:
@@ -46,7 +55,7 @@ on:
 jobs:
   trace-gate:
     name: FR Coverage Gate
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     env:
       CARGO_TERM_COLOR: always
       CARGO_TARGET_DIR: /tmp/trace-gate-target
@@ -95,9 +104,12 @@ jobs:
         # binary, so the gate must still execute regardless of that earlier step.
         if: always()
         run: |
+          # Pass push_url via env to avoid leaking tokens in `ps` argv.
+          # The binary reads TRACE_GATE_PUSH_URL when set.
           PUSH_ARG=""
           if [ -n "${{ inputs.push_url }}" ]; then
-            PUSH_ARG="--push ${{ inputs.push_url }}"
+            export TRACE_GATE_PUSH_URL="${{ inputs.push_url }}"
+            PUSH_ARG="--push"
           fi
           # When invoked as a reusable workflow, honor caller inputs.
           # When self-triggered on this repo (push/PR, no inputs), scan the

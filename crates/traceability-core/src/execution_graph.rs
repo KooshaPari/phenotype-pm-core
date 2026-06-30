@@ -333,7 +333,9 @@ fn is_valid_node_id(id: &str) -> bool {
 // the shape that matters is "thing that runs" -> "thing that runs".
 // `ParallelTo` is undirected in spirit, encoded as a directed edge for storage.
 // ---------------------------------------------------------------------------
-fn allowed_edge_constraints(edge: ExecutionEdgeType) -> &'static [(ExecutionNodeType, ExecutionNodeType)] {
+fn allowed_edge_constraints(
+    edge: ExecutionEdgeType,
+) -> &'static [(ExecutionNodeType, ExecutionNodeType)] {
     use ExecutionEdgeType::*;
     use ExecutionNodeType::*;
     static TRIGGERS: &[(ExecutionNodeType, ExecutionNodeType)] = &[
@@ -352,11 +354,8 @@ fn allowed_edge_constraints(edge: ExecutionEdgeType) -> &'static [(ExecutionNode
         (Deploy, Build),
         (Deploy, Test),
     ];
-    static PRODUCES: &[(ExecutionNodeType, ExecutionNodeType)] = &[
-        (Build, Deploy),
-        (Build, Test),
-        (Job, Build),
-    ];
+    static PRODUCES: &[(ExecutionNodeType, ExecutionNodeType)] =
+        &[(Build, Deploy), (Build, Test), (Job, Build)];
     // ParallelTo: any pair allowed.
     static PARALLEL_TO: &[(ExecutionNodeType, ExecutionNodeType)] = &[];
     match edge {
@@ -652,13 +651,35 @@ mod tests {
         // Build -> Test -> Deploy
         let graph = ExecutionGraph {
             nodes: vec![
-                sample_node("Build#cargo", ExecutionNodeType::Build, ExecutionStatus::Passed),
-                sample_node("Test#unit", ExecutionNodeType::Test, ExecutionStatus::Passed),
-                sample_node("Deploy#prod", ExecutionNodeType::Deploy, ExecutionStatus::Pending),
+                sample_node(
+                    "Build#cargo",
+                    ExecutionNodeType::Build,
+                    ExecutionStatus::Passed,
+                ),
+                sample_node(
+                    "Test#unit",
+                    ExecutionNodeType::Test,
+                    ExecutionStatus::Passed,
+                ),
+                sample_node(
+                    "Deploy#prod",
+                    ExecutionNodeType::Deploy,
+                    ExecutionStatus::Pending,
+                ),
             ],
             edges: vec![
-                sample_edge("e1", "Build#cargo", "Test#unit", ExecutionEdgeType::Triggers),
-                sample_edge("e2", "Test#unit", "Deploy#prod", ExecutionEdgeType::Triggers),
+                sample_edge(
+                    "e1",
+                    "Build#cargo",
+                    "Test#unit",
+                    ExecutionEdgeType::Triggers,
+                ),
+                sample_edge(
+                    "e2",
+                    "Test#unit",
+                    "Deploy#prod",
+                    ExecutionEdgeType::Triggers,
+                ),
             ],
             metadata: empty_metadata(),
         };
@@ -770,7 +791,11 @@ mod tests {
                 sample_node("Build#a", ExecutionNodeType::Build, ExecutionStatus::Passed),
                 sample_node("Test#a", ExecutionNodeType::Test, ExecutionStatus::Failed),
                 sample_node("Test#b", ExecutionNodeType::Test, ExecutionStatus::Failed),
-                sample_node("Deploy#a", ExecutionNodeType::Deploy, ExecutionStatus::Skipped),
+                sample_node(
+                    "Deploy#a",
+                    ExecutionNodeType::Deploy,
+                    ExecutionStatus::Skipped,
+                ),
             ],
             edges: vec![],
             metadata: empty_metadata(),
