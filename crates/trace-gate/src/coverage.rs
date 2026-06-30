@@ -90,8 +90,7 @@ impl CoverageSummary {
 
         // Also report any FRs found in source that weren't in the manifest
         // (informational — they don't affect the gate).
-        let manifest_ids: HashSet<&str> =
-            requirements.iter().map(|r| r.fr_id.as_str()).collect();
+        let manifest_ids: HashSet<&str> = requirements.iter().map(|r| r.fr_id.as_str()).collect();
         let extra: Vec<&str> = hits
             .keys()
             .filter(|id| !manifest_ids.contains(id.as_str()))
@@ -99,7 +98,9 @@ impl CoverageSummary {
             .collect();
         if !extra.is_empty() {
             // Print informational note; not a failure.
-            eprintln!("trace-gate: FRs found in source but not in manifest (informational): {extra:?}");
+            eprintln!(
+                "trace-gate: FRs found in source but not in manifest (informational): {extra:?}"
+            );
         }
 
         let all_covered = missing_count == 0 && !requirements.is_empty();

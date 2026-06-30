@@ -26,11 +26,7 @@ pub enum ScanError {
 ///
 /// `file_path` is used as-is in the emitted links (caller controls whether it's
 /// absolute or relative to the scan root).
-pub fn scan_file(
-    file_path: &str,
-    content: &str,
-    patterns: &Patterns,
-) -> Vec<ScanTraceLink> {
+pub fn scan_file(file_path: &str, content: &str, patterns: &Patterns) -> Vec<ScanTraceLink> {
     let mut links = Vec::new();
 
     for (idx, line) in content.lines().enumerate() {
@@ -109,8 +105,18 @@ pub fn scan_dir(dir: &Path, patterns: &Patterns) -> Result<Vec<ScanTraceLink>, S
         if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
             if matches!(
                 ext,
-                "png" | "jpg" | "jpeg" | "gif" | "svg" | "woff" | "woff2"
-                    | "ttf" | "otf" | "ico" | "pdf" | "lock"
+                "png"
+                    | "jpg"
+                    | "jpeg"
+                    | "gif"
+                    | "svg"
+                    | "woff"
+                    | "woff2"
+                    | "ttf"
+                    | "otf"
+                    | "ico"
+                    | "pdf"
+                    | "lock"
             ) {
                 continue;
             }

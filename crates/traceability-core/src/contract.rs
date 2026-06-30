@@ -75,9 +75,7 @@ pub struct GherkinRef {
 }
 
 /// Bridge lifecycle phase for spec ↔ implementation traceability.
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum BridgePhase {
     /// Acceptance criteria specified but not yet bridged to tests.
@@ -141,8 +139,7 @@ impl AcceptanceContract {
     pub fn invariants_hold(&self, matrix: &CoverageMatrix) -> bool {
         self.must_not_break.iter().all(|inv| {
             matrix.cells.values().any(|cell| {
-                (cell.to == *inv || cell.from == *inv)
-                    && cell.coverage == CoverageState::Covered
+                (cell.to == *inv || cell.from == *inv) && cell.coverage == CoverageState::Covered
             })
         })
     }
@@ -521,10 +518,7 @@ mod tests {
             has_test_links: false,
             ..Default::default()
         };
-        assert_eq!(
-            gate.evaluate(&ctx_no_test),
-            Err(GateReason::MissingTest)
-        );
+        assert_eq!(gate.evaluate(&ctx_no_test), Err(GateReason::MissingTest));
     }
 
     #[test]
@@ -606,10 +600,7 @@ mod tests {
             matrix: Some(&empty_matrix),
             ..Default::default()
         };
-        assert_eq!(
-            gate.evaluate(&ctx),
-            Err(GateReason::MissingValidator)
-        );
+        assert_eq!(gate.evaluate(&ctx), Err(GateReason::MissingValidator));
 
         let matrix = sample_matrix(true);
         let ctx_ok = GateContext {
@@ -633,10 +624,7 @@ mod tests {
             acceptance: Some(&contract),
             ..Default::default()
         };
-        assert_eq!(
-            gate.evaluate(&ctx),
-            Err(GateReason::BridgeNotEstablished)
-        );
+        assert_eq!(gate.evaluate(&ctx), Err(GateReason::BridgeNotEstablished));
 
         contract.bridge_phase = Some(BridgePhase::Bridged);
         let ctx_ok = GateContext {
