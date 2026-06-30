@@ -5,7 +5,7 @@
 use std::path::PathBuf;
 use std::process;
 
-use traceability_decorators::{scan_dir, patterns::Patterns};
+use traceability_decorators::{patterns::Patterns, scan_dir};
 
 fn main() {
     let mut src = PathBuf::from("src");

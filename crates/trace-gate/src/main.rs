@@ -126,7 +126,12 @@ fn main() {
     }
 
     // ── Optional push ────────────────────────────────────────────────────────
-    if let Some(url) = &args.push {
+    // Support both --push <URL> and TRACE_GATE_PUSH_URL env var.
+    // The env var path avoids leaking tokens in `ps` argv.
+    let push_url = args
+        .push
+        .or_else(|| std::env::var("TRACE_GATE_PUSH_URL").ok());
+    if let Some(url) = &push_url {
         push::push_to_tracera(url, &summary);
     }
 
