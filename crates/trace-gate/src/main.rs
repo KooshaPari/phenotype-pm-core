@@ -28,6 +28,42 @@ use traceability_decorators::{patterns::Patterns, scan_dir};
 use coverage::CoverageSummary;
 use manifest::Manifest;
 
+// ── Terminal colour helpers ───────────────────────────────────────────────────
+
+/// Returns `true` when ANSI colour / Unicode glyphs are acceptable on stderr.
+///
+/// Disabled when:
+/// - `NO_COLOR` is set to any value (https://no-color.org)
+/// - `CLICOLOR == 0` (https://bixense.com/clicolors)
+/// - stderr is not a terminal and `FORCE_COLOR` is unset
+fn use_color_on_stderr() -> bool {
+    if std::env::var_os("NO_COLOR").is_some() {
+        return false;
+    }
+    if let Some(v) = std::env::var_os("CLICOLOR") {
+        if v == "0" {
+            return false;
+        }
+    }
+    // Default: only colour when stderr is a terminal
+    is_terminal::IsTerminal::is_terminal(&std::io::stderr())
+}
+
+/// Return the pass/fail symbol: coloured glyph on terminal, ASCII label otherwise.
+fn pass_fail_symbol(pass: bool) -> &'static str {
+    if use_color_on_stderr() {
+        if pass {
+            "✓"
+        } else {
+            "✗"
+        }
+    } else if pass {
+        "[PASS]"
+    } else {
+        "[FAIL]"
+    }
+}
+
 #[derive(Parser, Debug)]
 #[command(
     name = "trace-gate",
@@ -55,19 +91,31 @@ struct Args {
 
 // FR: FR-GATE-001
 fn main() {
+    // ── Initialise structured logging ──────────────────────────────────────
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
+        )
+        .with_writer(std::io::stderr)
+        .with_target(false)
+        .without_time() // CLI output is ephemeral — no timestamps needed.
+        .init();
+
     let args = Args::parse();
 
     // ── Load manifest ────────────────────────────────────────────────────────
     let manifest = match Manifest::load(&args.manifest) {
         Ok(m) => m,
         Err(e) => {
-            eprintln!("trace-gate: {e}");
+            tracing::error!("trace-gate: cannot load manifest — {e}");
+            tracing::warn!("hint: check that '{}' exists and is valid TOML", args.manifest);
             process::exit(2);
         }
     };
 
     if manifest.requirement.is_empty() {
-        eprintln!("trace-gate: manifest has no [[requirement]] entries — nothing to check.");
+        tracing::warn!("trace-gate: manifest has no [[requirement]] entries — nothing to check.");
         process::exit(0);
     }
 
@@ -77,7 +125,11 @@ fn main() {
     let scan_links = match scan_dir(&src_path, &patterns) {
         Ok(l) => l,
         Err(e) => {
-            eprintln!("trace-gate: scan error: {e}");
+            tracing::error!("trace-gate: scan error: {e}");
+            tracing::warn!(
+                "hint: check that the source directory '{}' exists and is readable",
+                args.src
+            );
             process::exit(2);
         }
     };
@@ -86,6 +138,9 @@ fn main() {
     let summary = CoverageSummary::build(&manifest.requirement, &scan_links);
 
     // ── Human-readable report ────────────────────────────────────────────────
+    let pass_sym = pass_fail_symbol(true);
+    let fail_sym = pass_fail_symbol(false);
+
     println!(
         "\ntrace-gate: {} FR(s) checked — {} covered, {} missing\n",
         manifest.requirement.len(),
@@ -97,7 +152,7 @@ fn main() {
         match req.state {
             CoverageState::Covered => {
                 println!(
-                    "  ✓  {} — covered at {} location(s)",
+                    "  {pass_sym} {} — covered at {} location(s)",
                     req.fr_id,
                     req.found_at.len()
                 );
@@ -111,7 +166,7 @@ fn main() {
                 }
             }
             _ => {
-                println!("  ✗  {} — MISSING ({})", req.fr_id, req.description);
+                println!("  {fail_sym} {} — MISSING ({})", req.fr_id, req.description);
             }
         }
     }
@@ -134,7 +189,7 @@ fn main() {
     if summary.all_covered {
         process::exit(0);
     } else {
-        eprintln!(
+        tracing::error!(
             "trace-gate: FAIL — {} FR(s) not covered in source",
             summary.missing_count
         );

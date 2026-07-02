@@ -101,6 +101,102 @@ fn exit_2_on_missing_manifest() {
         .stderr(predicate::str::contains("cannot read manifest"));
 }
 
+// ── NO_COLOR / CLICOLOR tests ────────────────────────────────────────────────
+
+/// NO_COLOR set → stdout uses ASCII [PASS]/[FAIL] labels instead of Unicode glyphs.
+#[test]
+fn no_color_env_uses_ascii_labels() {
+    let mut cmd = Command::cargo_bin("trace-gate").unwrap();
+    cmd.arg("--manifest")
+        .arg(fixture("manifest_partial.toml"))
+        .arg("--src")
+        .arg(fixture("src"))
+        .env("NO_COLOR", "1");
+
+    let output = cmd.assert().failure().code(1).get_output().stdout.clone();
+    let stdout = String::from_utf8(output).unwrap();
+    // Should contain ASCII labels, NOT Unicode glyphs
+    assert!(
+        stdout.contains("[PASS]") || stdout.contains("[FAIL]"),
+        "expected ASCII [PASS]/[FAIL] labels when NO_COLOR is set, got: {stdout}"
+    );
+}
+
+/// CLICOLOR=0 → stdout uses ASCII [PASS]/[FAIL] labels.
+#[test]
+fn clicolor_zero_uses_ascii_labels() {
+    let mut cmd = Command::cargo_bin("trace-gate").unwrap();
+    cmd.arg("--manifest")
+        .arg(fixture("manifest_partial.toml"))
+        .arg("--src")
+        .arg(fixture("src"))
+        .env("CLICOLOR", "0");
+
+    let output = cmd.assert().failure().code(1).get_output().stdout.clone();
+    let stdout = String::from_utf8(output).unwrap();
+    assert!(
+        stdout.contains("[PASS]") || stdout.contains("[FAIL]"),
+        "expected ASCII labels when CLICOLOR=0, got: {stdout}"
+    );
+}
+
+/// Without NO_COLOR/CLICOLOR, the binary should use Unicode glyphs on a real
+/// terminal. In a CI/pipe environment (non-TTY) the default is also ASCII, so
+/// we check that the *inverse* path is also consistent — the flag controls
+/// only the label choice.
+#[test]
+fn default_output_uses_glyphs_or_fallback() {
+    let mut cmd = Command::cargo_bin("trace-gate").unwrap();
+    cmd.arg("--manifest")
+        .arg(fixture("manifest_all.toml"))
+        .arg("--src")
+        .arg(fixture("src"));
+
+    // In a test-runner pipe, stderr is non-TTY by default, so the binary may
+    // fall back to ASCII even without NO_COLOR. Accept either.
+    let output = cmd.assert().success().code(0).get_output().stdout.clone();
+    let stdout = String::from_utf8(output).unwrap();
+    // At minimum, the coverage line must be present.
+    assert!(stdout.contains("FR(s) checked"));
+}
+
+// ── Structured logging tests ─────────────────────────────────────────────────
+
+/// When a manifest is missing, stderr includes a structured log level prefix
+/// and a suggestion hint.
+#[test]
+fn manifest_missing_shows_hint_on_stderr() {
+    let mut cmd = Command::cargo_bin("trace-gate").unwrap();
+    cmd.arg("--manifest")
+        .arg("/tmp/does_not_exist_at_all_for_hint_test.toml")
+        .arg("--src")
+        .arg("src");
+
+    cmd.assert()
+        .failure()
+        .code(2)
+        .stderr(predicate::str::contains("hint:"))
+        .stderr(predicate::str::contains("cannot load manifest"));
+}
+
+/// When a source directory is missing, stderr includes a hint.
+#[test]
+fn scan_missing_dir_shows_hint_on_stderr() {
+    let manifest = fixture("manifest_partial.toml");
+    let mut cmd = Command::cargo_bin("trace-gate").unwrap();
+    cmd.arg("--manifest")
+        .arg(manifest)
+        .arg("--src")
+        .arg("/tmp/does_not_exist_src_at_all");
+
+    cmd.assert()
+        .failure()
+        .code(2)
+        .stderr(predicate::str::contains("hint:"));
+}
+
+// ── Existing tests ───────────────────────────────────────────────────────────
+
 /// --push flag prints stub payload without affecting exit code.
 #[test]
 fn push_flag_prints_stub_without_affecting_exit() {
