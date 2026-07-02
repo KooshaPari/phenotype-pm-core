@@ -94,18 +94,20 @@ jobs:
         # may not yet contain trace-gate). The self-build fallback recovers the
         # binary, so the gate must still execute regardless of that earlier step.
         if: always()
+        env:
+          PUSH_URL: ${{ inputs.push_url }}
+          INPUT_MANIFEST: ${{ inputs.manifest }}
+          INPUT_SRC: ${{ inputs.src }}
         run: |
           PUSH_ARG=""
-          if [ -n "${{ inputs.push_url }}" ]; then
-            PUSH_ARG="--push ${{ inputs.push_url }}"
+          if [ -n "$PUSH_URL" ]; then
+            PUSH_ARG="--push $PUSH_URL"
           fi
           # When invoked as a reusable workflow, honor caller inputs.
           # When self-triggered on this repo (push/PR, no inputs), scan the
           # crates/ tree where this repo's own FR annotations live.
-          MANIFEST="${{ inputs.manifest }}"
-          SRC="${{ inputs.src }}"
-          MANIFEST="${MANIFEST:-trace-gate.toml}"
-          SRC="${SRC:-crates}"
+          MANIFEST="${INPUT_MANIFEST:-trace-gate.toml}"
+          SRC="${INPUT_SRC:-crates}"
           trace-gate \
             --manifest "$MANIFEST" \
             --src "$SRC" \
