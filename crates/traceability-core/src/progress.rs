@@ -79,10 +79,7 @@ mod tests {
         for (i, state) in states.iter().enumerate() {
             let from = format!("test:T-{i}");
             let to = format!("FR-{i}");
-            cells.insert(
-                (from.clone(), to.clone()),
-                cell(&from, &to, *state),
-            );
+            cells.insert((from.clone(), to.clone()), cell(&from, &to, *state));
         }
         CoverageMatrix {
             cells,

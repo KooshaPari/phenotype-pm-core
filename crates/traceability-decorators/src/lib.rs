@@ -11,8 +11,8 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
-pub mod scanner;
 pub mod patterns;
+pub mod scanner;
 
-pub use scanner::{scan_file, scan_dir, ScanError};
 pub use patterns::ScanTraceLink;
+pub use scanner::{scan_dir, scan_file, ScanError};
